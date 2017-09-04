@@ -53,7 +53,9 @@ The trained model is saved as `model_*.sav`, which is then performed in `project
 
 7/8 items are correctly identified.
 
-To locate an recognized project on the table, the centroid (average in x, y and z) of the set of points belonging to that object is calculated. Then the details of each detected object (`test_scene_num, arm_name, object_name, pick_pose, place_pose`) are packed as ROS messages and also outputted as `.yaml` files (line 219-291 in `project.py`).
+To locate an recognized project on the table, the centroid (average in x, y and z) of the set of points belonging to that object is calculated and used as its position. Then the details of each detected object (`test_scene_num, arm_name, object_name, pick_pose, place_pose`) are packed as ROS messages and also outputted as `.yaml` files (line 219-291 in `project.py`).
+
+From the above figure, we can see that in the third scenario the snack was recognized as a sticky_notes, where the trained SVM failed in predicting the right label. I think this can be improved by increasing the training data quantity or trying other SVM kernels with more complexity. 
 
 
 
