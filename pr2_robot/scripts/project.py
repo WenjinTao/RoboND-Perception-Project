@@ -232,11 +232,8 @@ def pr2_mover(do_list):
 
     # TODO: Rotate PR2 in place to capture side tables for the collision map
 
-    # TODO: Loop through the pick list
-    labels = []
-    centroids = [] # to be list of tuples (x, y, z)
+    # TODO: Loop through the pick list    
     yaml_dict_list = []
-
     for i in range(len(object_list_param)):
         # TODO: Parse parameters into individual variables
         # get the target_object params
