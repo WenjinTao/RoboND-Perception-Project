@@ -1,85 +1,63 @@
-## Project: Perception Pick & Place
-### Writeup Template: You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
+# Project: Perception Pick & Place
+This project is to implement a perception pipeline for PR2 robot to detect, recognize and locate different objects on a table.
 
----
-
-
-# Required Steps for a Passing Submission:
-1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
-
-   `roslaunch sensor_stick training.launch`
-
-2. Write a ROS node and subscribe to `/pr2/world/points` topic. This topic contains noisy point cloud data that you must work with.
-
-3. Use filtering and RANSAC plane fitting to isolate the objects of interest from the rest of the scene.
-
-4. Apply Euclidean clustering to create separate clusters for individual items.
-
-5. Perform object recognition on these objects and assign them labels (markers in RViz).
-
-6. Calculate the centroid (average in x, y and z) of the set of points belonging to that each object.
-
-7. Create ROS messages containing the details of each object (name, pick_pose, etc.) and write these messages out to `.yaml` files, one for each of the 3 scenarios (`test1-3.world` in `/pr2_robot/worlds/`).  [See the example `output.yaml` for details on what the output should look like.](https://github.com/udacity/RoboND-Perception-Project/blob/master/pr2_robot/config/output.yaml)  
-
-8. Submit a link to your GitHub repo for the project or the Python code for your perception pipeline and your output `.yaml` files (3 `.yaml` files, one for each test world).  You must have correctly identified 100% of objects from `pick_list_1.yaml` for `test1.world`, 80% of items from `pick_list_2.yaml` for `test2.world` and 75% of items from `pick_list_3.yaml` in `test3.world`.
-
-9. Congratulations!  Your Done!
-
-# Extra Challenges: Complete the Pick & Place
-7. To create a collision map, publish a point cloud to the `/pr2/3d_map/points` topic and make sure you change the `point_cloud_topic` to `/pr2/3d_map/points` in `sensors.yaml` in the `/pr2_robot/config/` directory. This topic is read by Moveit!, which uses this point cloud input to generate a collision map, allowing the robot to plan its trajectory.  Keep in mind that later when you go to pick up an object, you must first remove it from this point cloud so it is removed from the collision map!
-8. Rotate the robot to generate collision map of table sides. This can be accomplished by publishing joint angle value(in radians) to `/pr2/world_joint_controller/command`
-9. Rotate the robot back to its original state.
-10. Create a ROS Client for the “pick_place_routine” rosservice.  In the required steps above, you already created the messages you need to use this service. Checkout the [PickPlace.srv](https://github.com/udacity/RoboND-Perception-Project/tree/master/pr2_robot/srv) file to find out what arguments you must pass to this service.
-11. If everything was done correctly, when you pass the appropriate messages to the `pick_place_routine` service, the selected arm will perform pick and place operation and display trajectory in the RViz window
-12. Place all the objects from your pick list in their respective dropoff box and you have completed the challenge!
-13. Looking for a bigger challenge?  Load up the `challenge.world` scenario and see if you can get your perception pipeline working there!
-
-## [Rubric](https://review.udacity.com/#!/rubrics/1067/view) Points
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
-
----
-### Writeup / README
-
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  
-
-You're reading it!
-
-### Exercise 1, 2 and 3 pipeline implemented
 #### 1. Complete Exercise 1 steps. Pipeline for filtering and RANSAC plane fitting implemented.
+
+The `/pr2/world/points` topic provides the input point cloud data for the pipeline, which contains noises to be removed. The original cloud data is processed by a series of `PCL` filters,
+
+- Voxel grid downsampling filter (`.make_voxel_grid_filter()`)
+- Passthrough filter (`.make_passthrough_filter()`)
+- Statistical outlier filter (`.make_statistical_outlier_filter()`)
+
+which are implemented between line 54-106 in [project.py](pr2_robot/scripts/project.py).
+
+After that, RANSAC plane fitting is implemented (line 108-127) to isolate the objects of interest from the rest of the scene. The segmentation result is then published to `/pcl_objects` and `/pcl_table` topics, which are visualized as shown below.
+
+![](img/snapshot5.png)
+
+![](img/snapshot6.png)
 
 #### 2. Complete Exercise 2 steps: Pipeline including clustering for segmentation implemented.  
 
-#### 2. Complete Exercise 3 Steps.  Features extracted and SVM trained.  Object recognition implemented.
-Here is an example of how to include an image in your writeup.
+Euclidean clustering is applied (line 129-162) to create separate clusters for individual items. The following figure shows the clustering result of scenario 2 which has 5 items.
 
-![demo-1](https://user-images.githubusercontent.com/20687560/28748231-46b5b912-7467-11e7-8778-3095172b7b19.png)
+![](img/snapshot7.png)
 
-### Pick and Place Setup
+#### 3. Complete Exercise 3 Steps.  Features extracted and SVM trained.  Object recognition implemented.
 
-#### 1. For all three tabletop setups (`test*.world`), perform object recognition, then read in respective pick list (`pick_list_*.yaml`). Next construct the messages that would comprise a valid `PickPlace` request output them to `.yaml` format.
+The `sensor_stick` environment is used to capture features for different items. To launch this environment, use
 
-And here's another image! 
-![demo-2](https://user-images.githubusercontent.com/20687560/28748286-9f65680e-7468-11e7-83dc-f1a32380b89c.png)
+`roslaunch sensor_stick training.launch`
 
-Spend some time at the end to discuss your code, what techniques you used, what worked and why, where the implementation might fail and how you might improve it if you were going to pursue this project further.  
+The capture code is implemented in [capture_features.py](pr2_robot/scripts/capture_features.py), where the object list `models` needs to be specified accordingly. 20, 50 and 60 samples are captured for each item in three scenarios to have enough accuracy. Then the training data is saved as `training_set_*.sav`.
 
-1:
+After that, a SVM is implemented in [train_svm.py](pr2_robot/scripts/train_svm) by using the training data from the previous step. The following figures show the training result of the three scenarios.
 
-Scores: [ 1.          0.91666667  0.91666667  1.          1.        ]
-Accuracy: 0.97 (+/- 0.08)
-accuracy score: 0.966666666667
+|   Confusion Matrix    | Confusion Matrix (Normalized) | Accuracy        |
+| :-------------------: | :---------------------------: | --------------- |
+| ![](img/figure_5.png) |     ![](img/figure_6.png)     | 0.97 (+/- 0.08) |
+| ![](img/figure_1.png) |     ![](img/figure_2.png)     | 0.98 (+/- 0.05) |
+| ![](img/figure_3.png) |     ![](img/figure_4.png)     | 0.97 (+/- 0.03) |
 
-2:
+The trained model is saved as `model_*.sav`, which is then performed in `project.py` to recognize the segmented clusters. As shown in the following figures, recognized objects are assigned to predicted labels accordingly.
 
-Scores: [ 0.96  0.94  1.    0.98  1.  ]
-Accuracy: 0.98 (+/- 0.05)
-accuracy score: 0.976
+![](img/snapshot1.png)
 
-3:
+3/3 items are correctly identified.
 
-Scores: [ 0.97916667  0.97916667  0.96875     0.96875     0.93684211]
-Accuracy: 0.97 (+/- 0.03)
-accuracy score: 0.966597077244
+![](img/snapshot2.png)
+
+5/5 items are correctly identified.
+
+![](img/snapshot3.png)
+
+7/8 items are correctly identified.
+
+To locate an recognized project on the table, the centroid (average in x, y and z) of the set of points belonging to that object is calculated. Then the details of each detected object (`test_scene_num, arm_name, object_name, pick_pose, place_pose`) are packed as ROS messages and also outputted as `.yaml` files (line 219-291 in `project.py`).
+
+
+
+
 
 
 
